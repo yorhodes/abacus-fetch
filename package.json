@@ -5,8 +5,9 @@
   "author": "Yorke Rhodes <yorke@useabacus.network>",
   "license": "MIT",
   "dependencies": {
-    "@abacus-network/app": "^0.4.0-beta0",
-    "@abacus-network/core": "^0.4.0-beta0"
+    "@abacus-network/app": "^0.4.0",
+    "@abacus-network/core": "^0.4.0",
+    "@abacus-network/sdk": "^0.4.0"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.4.7",
@@ -25,6 +26,7 @@
     "ethers": "^5.4.7",
     "hardhat": "^2.10.1",
     "hardhat-gas-reporter": "^1.0.8",
+    "solc": "0.8.13",
     "solidity-coverage": "^0.7.21",
     "ts-node": ">=8.0.0",
     "typechain": "^8.1.0",
