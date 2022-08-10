@@ -4,45 +4,63 @@ pragma solidity ^0.8.0;
 import {Router} from "@abacus-network/app/contracts/Router.sol";
 
 contract Fetch is Router {
-    enum MessageType {
-        None,
-        Fetch,
-        Callback
-    }
+    event FetchFailed(uint32 domain, address target);
+    event CallbackFailed(uint32 domain, address target);
 
     function fetch(
-        uint32 _destination,
-        address _target,
-        bytes memory _data,
-        bytes4 _callbackSelector,
-        bytes memory _extraCallbackData
+        uint32 destination,
+        address target,
+        bytes4 callback,
+        bytes calldata data
     ) external {
-        bytes memory _payload = abi.encode(msg.sender, _callbackSelector, _target, _data, _extraCallbackData);
-        bytes memory _message = abi.encodePacked(MessageType.Fetch, _payload);
-        super._dispatch(_destination, _message);
+        super._dispatch(
+            destination,
+            abi.encodePacked(
+                uint8(0), // isCallback
+                msg.sender,
+                target,
+                callback,
+                data
+            )
+        );
     }
 
     function _handle(
         uint32 _origin,
         bytes32, // router
-        bytes memory _message
+        bytes calldata _message
     ) internal override {
-        (MessageType _messageType, bytes memory _payload) = abi.decode(_message, (MessageType, bytes));
-        if (_messageType == MessageType.Callback) {
-            (address _caller, bytes4 _callbackSelector, bytes memory _result, bytes memory _extra) = abi.decode(_payload, (address, bytes4, bytes, bytes));
-            (bool ok, ) = _caller.call(_payload);
+        uint8 isCallback = uint8(bytes1(_message[0]));
+        if (isCallback == 1) {
+            address target = address(bytes20(_message[1:21]));
+            bytes4 callback = bytes4(_message[21:25]);
+            (bool ok,) = target.call(
+                abi.encodeWithSelector(
+                    callback,
+                    _message[25:]
+                )
+            );
             if (!ok) {
-                revert();
+                emit CallbackFailed(_origin, target);
             }
-        } else if (_messageType == MessageType.Fetch) {
-            (address _caller, _callbackSelector, _target, _data, _extra) = abi.decode(_payload, (address, bytes4, address, bytes, bytes));
-            (bool ok, bytes memory _result) = _target.call(_data);
-            if (!ok) {
-                revert();
+        } else {
+            address caller = address(bytes20(_message[1:21]));
+            address target = address(bytes20(_message[21:41]));
+            bytes4 callback = bytes4(_message[41:45]);
+            (bool ok, bytes memory returnData) = target.call(_message[45:]);
+            if (ok) {
+                super._dispatch(
+                    _origin,
+                    abi.encodePacked(
+                        uint8(1), // isCallback
+                        caller,
+                        callback,
+                        returnData
+                    )
+                );
+            } else {
+                emit FetchFailed(_origin, target);
             }
-            bytes memory _payload = abi.encode(_caller, _callbackSelector, _result, _extra)
-            bytes memory _callbackMessage = abi.encodePacked(MessageType.Callback, _payload);
-            super._dispatch(_origin, _callbackMessage);
         }
     }
 }
